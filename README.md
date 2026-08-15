@@ -25,10 +25,33 @@ docker load -i dify-api-gaussdb-1.16.1.tar
 
 ## 快速部署
 
-1. 下载镜像 tar 并 `docker load`
-2. 使用 `delivery/docker-compose.yaml`（已替换镜像为 dify-api-gaussdb:1.16.1）
-3. 复制 `delivery/.env.gaussdb.example` 为 `.env`，填入 GaussDB 连接信息
-4. `docker compose up -d`
+**部署目录结构**（`.env` 必须和 `docker-compose.yaml` 在同一目录）：
+
+```
+/opt/dify-gaussdb/                  ← 部署目录
+├── docker-compose.yaml             ← 从 delivery/ 复制
+├── .env                            ← 从 delivery/.env.gaussdb.example 复制并修改
+├── dify-api-gaussdb-1.16.1.tar     ← 镜像（docker load 后可删）
+└── tests/                          ← 测试脚本（从 delivery/tests/ 复制，可选）
+```
+
+```bash
+# 1. 准备部署目录
+mkdir -p /opt/dify-gaussdb && cd /opt/dify-gaussdb
+
+# 2. 下载镜像 tar 并加载（从 Release 下载 tar 到本目录）
+docker load -i dify-api-gaussdb-1.16.1.tar
+
+# 3. 从交付包复制 compose 和配置模板（delivery/ 内容已随仓库 clone 到本地）
+cp delivery/docker-compose.yaml ./
+cp delivery/.env.gaussdb.example .env
+
+# 4. 编辑 .env，填入 GaussDB 连接信息（DB_HOST/PORT/USERNAME/PASSWORD 等）
+vi .env
+
+# 5. 启动
+docker compose up -d
+```
 
 详细步骤见 [delivery/实施部署交付文档.md](delivery/实施部署交付文档.md)。
 
