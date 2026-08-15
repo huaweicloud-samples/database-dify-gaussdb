@@ -1,0 +1,19 @@
+**/node_modules
+**/.pnpm-store
+**/dist
+**/.next
+**/.turbo
+**/.cache
+**/__pycache__
+**/*.pyc
+**/.mypy_cache
+**/.ruff_cache
+**/.venv
+.git
+.github
+# GaussDB 适配交付：排除非构建产物的大目录，减小 build context（原 1.24GB）
+flask-restx-fork
+survey
+*.md
+!web/README.md
+!api/README.md

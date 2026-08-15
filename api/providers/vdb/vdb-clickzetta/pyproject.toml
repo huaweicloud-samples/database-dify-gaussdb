@@ -1,0 +1,16 @@
+[project]
+name = "dify-vdb-clickzetta"
+version = "0.0.1"
+
+dependencies = [
+    # GaussDB 适配：clickzetta-connector-python 清华镜像缺失，且适配 GaussDB 不用 clickzetta 向量库。
+    # 永假 marker 让 uv 不解析此依赖。需用 clickzetta 向量库时移除此 marker。
+    "clickzetta-connector-python==0.8.104; sys_platform == 'never'",
+]
+description = "Dify vector store backend (dify-vdb-clickzetta)."
+
+[project.entry-points."dify.vector_backends"]
+clickzetta = "dify_vdb_clickzetta.clickzetta_vector:ClickzettaVectorFactory"
+
+[tool.setuptools.packages.find]
+where = ["src"]

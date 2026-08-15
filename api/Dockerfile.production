@@ -1,0 +1,72 @@
+# GaussDB 适配交付：production 阶段，基于 packages-layer（含完整 venv 437 包 + 源码）
+# 绕开容器内 uv sync I/O 问题（packages-layer 用 bind mount cache 方式预装好）
+FROM dify-api-gaussdb:packages-layer
+
+ENV FLASK_APP=app.py
+ENV EDITION=SELF_HOSTED
+ENV DEPLOY_ENV=PRODUCTION
+ENV CONSOLE_API_URL=http://127.0.0.1:5001
+ENV CONSOLE_WEB_URL=http://127.0.0.1:3000
+ENV SERVICE_API_URL=http://127.0.0.1:5001
+ENV APP_WEB_URL=http://127.0.0.1:3000
+
+EXPOSE 5001
+
+# set timezone
+ENV TZ=UTC
+
+# Set UTF-8 locale
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
+ENV PYTHONIOENCODING=utf-8
+
+WORKDIR /app/api
+
+# Create non-root user
+ARG dify_uid=1001
+RUN groupadd -r -g ${dify_uid} dify 2>/dev/null || true && \
+    useradd -r -u ${dify_uid} -g ${dify_uid} -s /bin/bash dify 2>/dev/null || true
+
+# 运行时 apt 依赖（生产环境需要）
+RUN sed -i 's@deb.debian.org@mirrors.aliyun.com@g' /etc/apt/sources.list.d/debian.sources && \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        gnupg \
+        libgmp-dev libmpfr-dev libmpc-dev \
+        expat libldap-2.5-0=2.5.13+dfsg-5 perl libsqlite3-0=3.40.1-2+deb12u2 zlib1g=1:1.2.13.dfsg-1 \
+        fonts-noto-cjk \
+        media-types \
+        libmagic1 \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
+
+# venv 已在 packages-layer（/app/api/.venv）
+ENV VIRTUAL_ENV=/app/api/.venv
+ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
+
+# chown venv + 源码给 dify
+RUN chown -R dify:dify /app
+
+# Download nltk data（走 GitHub，可能慢，失败则后续处理）
+RUN mkdir -p /usr/local/share/nltk_data \
+    && NLTK_DATA=/usr/local/share/nltk_data /app/api/.venv/bin/python -c "import nltk; nltk.download('punkt'); nltk.download('averaged_perceptron_tagger'); nltk.download('stopwords')" \
+    && chmod -R 755 /usr/local/share/nltk_data
+
+# tiktoken 缓存
+ENV TIKTOKEN_CACHE_DIR=/app/api/.tiktoken_cache
+RUN /app/api/.venv/bin/python -c "import tiktoken; tiktoken.encoding_for_model('gpt2')" \
+    && chown -R dify:dify ${TIKTOKEN_CACHE_DIR}
+
+# entrypoint（从主机 COPY，packages-layer 里的源码是 cp 进去的可能不全）
+COPY api/docker/entrypoint.sh /entrypoint.sh
+RUN chmod 755 /entrypoint.sh
+
+ARG COMMIT_SHA
+ENV COMMIT_SHA=${COMMIT_SHA}
+ENV NLTK_DATA=/usr/local/share/nltk_data
+
+USER dify
+
+ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]

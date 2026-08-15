@@ -1,0 +1,16 @@
+[project]
+name = "dify-vdb-tencent"
+version = "0.0.1"
+
+dependencies = [
+    # GaussDB 适配：tcvdb-text sdist 下载/解压有问题，且适配 GaussDB 不用 tencent 向量库。
+    # 永假 marker 让 uv 不解析此依赖链。需用 tencent 向量库时移除此 marker。
+    "tcvectordb~=2.1.0; sys_platform == 'never'",
+]
+description = "Dify vector store backend (dify-vdb-tencent)."
+
+[project.entry-points."dify.vector_backends"]
+tencent = "dify_vdb_tencent.tencent_vector:TencentVectorFactory"
+
+[tool.setuptools.packages.find]
+where = ["src"]

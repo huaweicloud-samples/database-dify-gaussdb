@@ -1,0 +1,12 @@
+[project]
+name = "dify-vdb-gaussdb"
+version = "0.0.1"
+
+dependencies = []
+description = "Dify vector store backend (dify-vdb-gaussdb)."
+
+[project.entry-points."dify.vector_backends"]
+gaussdb = "dify_vdb_gaussdb.gaussdb:GaussDBFactory"
+
+[tool.setuptools.packages.find]
+where = ["src"]
