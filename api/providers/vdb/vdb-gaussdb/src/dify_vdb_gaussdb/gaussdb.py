@@ -68,6 +68,12 @@ CREATE INDEX IF NOT EXISTS embedding_cosine_{table_name}_idx ON {table_name}
 USING GsDiskANN(embedding cosine) WITH (pq_nseg={pq_nseg}, pq_nclus=16, enable_pq={enable_pq}, subgraph_count={subgraph_count}, enable_vector_copy={enable_vector_copy});
 """
 
+# GsDiskANN 降级模板（505 等旧版本不支持 enable_vector_copy 参数）
+SQL_CREATE_INDEX_DISKANN_NO_VC = """
+CREATE INDEX IF NOT EXISTS embedding_cosine_{table_name}_idx ON {table_name}
+USING GsDiskANN(embedding cosine) WITH (pq_nseg={pq_nseg}, pq_nclus=16, enable_pq={enable_pq}, subgraph_count={subgraph_count});
+"""
+
 # BM25 全文索引（优先方案；若创建失败降级 tsvector）
 SQL_CREATE_BM25_INDEX = """
 CREATE INDEX IF NOT EXISTS text_bm25_{table_name}_idx ON {table_name} USING BM25(text);
@@ -144,11 +150,22 @@ class GaussDB(BaseVector):
                     enable_vector_copy = "false" if dimension > 1024 else "true"
                     # GsDiskANN 建索引需较大内存（默认 64MB 不够，L20 实测）
                     cur.execute("SET maintenance_work_mem = '512MB'")
-                    cur.execute(SQL_CREATE_INDEX_DISKANN.format(
-                        table_name=self.table_name, pq_nseg=pq_nseg,
-                        enable_pq=enable_pq, subgraph_count=subgraph_count,
-                        enable_vector_copy=enable_vector_copy,
-                    ))
+                    try:
+                        cur.execute(SQL_CREATE_INDEX_DISKANN.format(
+                            table_name=self.table_name, pq_nseg=pq_nseg,
+                            enable_pq=enable_pq, subgraph_count=subgraph_count,
+                            enable_vector_copy=enable_vector_copy,
+                        ))
+                    except Exception as e:
+                        if "enable_vector_copy" in str(e):
+                            # 505 等旧版本不支持 enable_vector_copy，回滚后降级重试
+                            cur.connection.rollback()
+                            cur.execute(SQL_CREATE_INDEX_DISKANN_NO_VC.format(
+                                table_name=self.table_name, pq_nseg=pq_nseg,
+                                enable_pq=enable_pq, subgraph_count=subgraph_count,
+                            ))
+                        else:
+                            raise
                 # BM25 全文索引（失败则降级，不影响主流程）
                 try:
                     cur.execute(SQL_CREATE_BM25_INDEX.format(table_name=self.table_name))
